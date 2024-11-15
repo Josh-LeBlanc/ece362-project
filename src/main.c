@@ -21,14 +21,16 @@ const char* username = "jleblan";
 #include "stm32f0xx.h"
 #include <stdint.h>
 
-// void initb();
+void initb();
+void init_exti();
+void 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
 // int32_t readpin(int32_t pin_num);
 // void buttons(void);
 // void keypad(void);
 // void autotest(void);
-// extern void internal_clock(void);
+extern void internal_clock(void);
 // extern void nano_wait(unsigned int n);
 typedef struct PS2Packet {
     
@@ -70,7 +72,7 @@ void EXTI0_1_IRQHandler() {
     EXTI->PR = EXTI_PR_PR0;
     int bit = (GPIOB->IDR >> 2) & 1;
     if (dignum > 0 && dignum < 9) {
-        code[dignum - 1] == bit;
+        code[dignum - 1] = bit;
     }
     dignum++;
 }
