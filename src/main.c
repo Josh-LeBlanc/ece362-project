@@ -43,6 +43,11 @@ int main(void) {
 
     initb();
     init_exti();
+
+    dignum = 0;
+    for (int i = 0; i < 8; i++) { code[i] = 0; }
+
+    for(;;) {}
     
     return 0;
 }
