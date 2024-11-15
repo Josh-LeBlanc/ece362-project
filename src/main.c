@@ -55,7 +55,7 @@ int main(void) {
     init_spi1();
     spi1_init_oled();
     spi1_display1("hello");
-    spi1_display2("bitch");
+    spi1_display2("friend");
 
     for(;;) {}
     
@@ -88,6 +88,14 @@ void EXTI0_1_IRQHandler() {
     if (dignum > 0 && dignum < 9) {
         code[dignum - 1] = bit;
     }
+    char p[12];
+    p[0] = '\0';
+    char str1[5] = "dn: ";
+    char str2[2];
+    itoa(dignum, str2, 10);
+    strncat(p, str1, sizeof(p) - strlen(p) - 1);
+    strncat(p, str2, sizeof(p) - strlen(p) - 1);
+    spi1_display1(p);
     dignum++;
     if (dignum == 12) { dignum = 0; }
 }
