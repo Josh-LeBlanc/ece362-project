@@ -21,6 +21,7 @@ const char* username = "jleblan";
 #include "stm32f0xx.h"
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 void initb();
 void init_exti();
@@ -41,7 +42,6 @@ extern void internal_clock(void);
 void nano_wait(unsigned int n);
 
 int dignum = 0;
-int code[8] = {0};
 
 int main(void) {
     internal_clock(); // do not comment!
@@ -49,13 +49,13 @@ int main(void) {
     initb();
     init_exti();
 
-    dignum = 0;
-    for (int i = 0; i < 8; i++) { code[i] = 0; }
-
     init_spi1();
     spi1_init_oled();
     spi1_display1("hello");
     spi1_display2("friend");
+
+    nano_wait(100000000);
+    dignum = 0;
 
     for(;;) {}
     
@@ -82,22 +82,30 @@ void init_exti() {
     NVIC->ISER[0] |= 0b100000;
 }
 
+char key = 0;
+
 void EXTI0_1_IRQHandler() {
     EXTI->PR = EXTI_PR_PR0;
-    int bit = (GPIOB->IDR >> 2) & 1;
-    if (dignum > 0 && dignum < 9) {
-        code[dignum - 1] = bit;
-    }
     char p[12];
     p[0] = '\0';
     char str1[5] = "dn: ";
-    char str2[2];
+    char str2[6];
     itoa(dignum, str2, 10);
     strncat(p, str1, sizeof(p) - strlen(p) - 1);
     strncat(p, str2, sizeof(p) - strlen(p) - 1);
     spi1_display1(p);
+    if (dignum > 0 && dignum < 9) {
+        key = (key >> 1) + (((GPIOB->IDR >> 2) & 1) << 7);
+    }
     dignum++;
-    if (dignum == 12) { dignum = 0; }
+    if (dignum == 11) {
+        if (key == 0x16) { key = '1'; }
+        char pk[2];
+        pk[0] = key;
+        pk[1] = '\0';
+        spi1_display2(pk);
+        dignum = 0;
+    }
 }
 
 void init_spi1() {
