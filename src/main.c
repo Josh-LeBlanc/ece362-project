@@ -23,7 +23,6 @@ const char* username = "jleblan";
 
 void initb();
 void init_exti();
-void 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
 // int32_t readpin(int32_t pin_num);
