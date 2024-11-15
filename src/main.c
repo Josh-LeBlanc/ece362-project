@@ -34,7 +34,7 @@ extern void nano_wait(unsigned int n);
 int main(void) {
     internal_clock(); // do not comment!
     // Comment until most things have been implemented
-    autotest();
+    // autotest();
     initb();
     initc();
 
