@@ -37,7 +37,7 @@ typedef struct PS2Packet {
 } PS2Packet;
 
 int dignum = 0;
-int* code[8] = {0};
+int code[8] = {0};
 
 int main(void) {
     internal_clock(); // do not comment!
@@ -75,6 +75,7 @@ void EXTI0_1_IRQHandler() {
         code[dignum - 1] = bit;
     }
     dignum++;
+    if (dignum == 12) { dignum = 0; }
 }
 
 /**
