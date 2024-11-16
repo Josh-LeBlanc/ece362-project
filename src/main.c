@@ -72,6 +72,7 @@ int main(void) {
         unsigned char key = 0;
         for (int i = 1; i < 9; i++) {
             key = (key >> 1) + (char_log[i] << 7);
+            // fill up row 1 with a's
             str1[2*(i-1)] = 'a';
             str1[2*(i-1)+1] = 'a';
         }
