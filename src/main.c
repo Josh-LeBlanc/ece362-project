@@ -32,6 +32,7 @@ void spi1_display2(const char*);
 void spi_cmd(unsigned int);
 void spi_data(unsigned int);
 void setup_tim7();
+char key_to_char(unsigned char);
 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
@@ -47,7 +48,9 @@ char char_log[33];
 int tog = 0;
 char str1[17] = {0};
 char str2[17] = {0};
+int pcurpos = 0;
 int curpos = 0;
+unsigned char key = 0;
 
 int main(void) {
     internal_clock(); // do not comment!
@@ -69,28 +72,14 @@ int main(void) {
         itoa(bitnum, str2, 10);
         str2[strlen(str2)] = '\0';
         // read key from log
-        unsigned char key = 0;
         for (int i = 1; i < 9; i++) {
             key = (key >> 1) + (char_log[i] << 7);
+            // key_to_char returns the char based on the character
+            str1[curpos] = key_to_char(key);
             // fill up row 1 with a's
-            str1[2*(i-1)] = 'a';
-            str1[2*(i-1)+1] = 'a';
         }
+        pcurpos = curpos;
         // example switch statement. will make a function with the rest of the characters we need from https://techdocs.altium.com/display/FPGA/PS2+Keyboard+Scan+Codes
-        switch (key) {
-            case 0x16:
-                str1[0] = 'o';
-                str1[1] = 'n';
-                str1[2] = 'e';
-                str1[3] = '\0';
-                break;
-            case 0x1e:
-                str1[0] = 't';
-                str1[1] = 'w';
-                str1[2] = 'o';
-                str1[3] = '\0';
-                break;
-        }
 
         // call the displays on each for loop
         spi1_display1(str1);
@@ -197,7 +186,9 @@ void spi1_display1(const char *string) {
     // for each char in string
     for (int i = 0; i < strlen(string); i++) {
         // if we are on cursor position and its toggled:
-        if ((i == curpos) && tog) { spi_data((char)0xff); }
+        if (i == curpos) { 
+            tog ? spi_data((char)0xfe) : spi_data((char)0xff);
+        }
         // else:
         else { spi_data(string[i]); }
     }
@@ -257,4 +248,93 @@ void TIM7_IRQHandler() {
     TIM7->SR &= ~TIM_SR_UIF;
     // toggle cursor
     tog = !tog;
+}
+
+char key_to_char(unsigned char key) {
+    switch (key) {
+        case 0x16:
+            return '1';
+        case 0x1e:
+            return '2';
+        case 0x26:
+            return '3';
+        case 0x25:
+            return '4';
+        case 0x2e:
+            return '5';
+        case 0x36:
+            return '6';
+        case 0x3d:
+            return '7';
+        case 0x3e:
+            return '8';
+        case 0x46:
+            return '9';
+        case 0x45:
+            return '0';
+        case 0x15:
+            return 'Q';
+        case 0x1d:
+            return 'W';
+        case 0x24:
+            return 'E';
+        case 0x2d:
+            return 'R';
+        case 0x2c:
+            return 'T';
+        case 0x35:
+            return 'Y';
+        case 0x3c:
+            return 'U';
+        case 0x43:
+            return 'I';
+        case 0x44:
+            return 'O';
+        case 0x4d:
+            return 'P';
+        case 0x1c:
+            return 'A';
+        case 0x1b:
+            return 'S';
+        case 0x23:
+            return 'D';
+        case 0x2b:
+            return 'F';
+        case 0x34:
+            return 'G';
+        case 0x33:
+            return 'H';
+        case 0x3b:
+            return 'J';
+        case 0x42:
+            return 'K';
+        case 0x4b:
+            return 'L';
+        case 0x4c:
+            return ';';
+        case 0x52:
+            return '\'';
+        case 0x1a:
+            return 'Z';
+        case 0x22:
+            return 'X';
+        case 0x21:
+            return 'C';
+        case 0x2a:
+            return 'V';
+        case 0x32:
+            return 'B';
+        case 0x31:
+            return 'N';
+        case 0x3a:
+            return 'M';
+        case 0x41:
+            return ',';
+        case 0x49:
+            return '.';
+        case 0x29:
+            return ' ';
+        default:
+            return ' ';
+    }
 }
