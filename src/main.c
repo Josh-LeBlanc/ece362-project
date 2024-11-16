@@ -42,6 +42,7 @@ extern void internal_clock(void);
 void nano_wait(unsigned int n);
 
 int dignum = 0;
+char log[33];
 
 int main(void) {
     internal_clock(); // do not comment!
@@ -61,6 +62,18 @@ int main(void) {
 
     for(;;) {
         itoa(dignum, str, 10);
+        if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 0 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
+            str[0] = 'o';
+            str[1] = 'n';
+            str[2] = 'e';
+            str[3] = '\0';
+        }
+        if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 1 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
+            str[0] = 't';
+            str[1] = 'w';
+            str[2] = 'o';
+            str[3] = '\0';
+        }
         spi1_display1(str);
     }
     
@@ -87,7 +100,6 @@ void init_exti() {
     NVIC->ISER[0] |= 0b100000;
 }
 
-char key = 0;
 
 void EXTI0_1_IRQHandler() {
     // acknowledge
@@ -102,7 +114,11 @@ void EXTI0_1_IRQHandler() {
     //     // 
     //     key = (key >> 1) + (((GPIOB->IDR >> 2) & 1) << 7);
     // }
+    log[dignum] = ((GPIOB->IDR >> 2) & 1);
     dignum++;
+    if (dignum == 33) {
+        dignum = 0;
+    }
     // if (dignum == 999999) {
     //     if (key == 0x16) { key = '1'; }
     //     char pk[2];
