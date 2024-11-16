@@ -31,6 +31,7 @@ void spi1_display1(const char*);
 void spi1_display2(const char*);
 void spi_cmd(unsigned int);
 void spi_data(unsigned int);
+void setup_tim7();
 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
@@ -41,12 +42,17 @@ void spi_data(unsigned int);
 extern void internal_clock(void);
 void nano_wait(unsigned int n);
 
-int dignum = 0;
-char log[33];
+int bitnum = 0;
+char char_log[33];
+int tog = 0;
+char str1[17] = {0};
+char str2[17] = {0};
+int curpos = 0;
 
 int main(void) {
     internal_clock(); // do not comment!
 
+    // need for 
     initb();
     init_exti();
 
@@ -54,45 +60,46 @@ int main(void) {
     spi1_init_oled();
 
     nano_wait(100000000);
-    dignum = 0;
+    bitnum = 0;
 
-    char str[12];
-    char str2[12];
-
-
+    setup_tim7();
 
     for(;;) {
-        itoa(dignum, str2, 10);
+        // show bitnum in str2
+        itoa(bitnum, str2, 10);
+        str2[strlen(str2)] = '\0';
+        // read key from log
         unsigned char key = 0;
         for (int i = 1; i < 9; i++) {
-            key = (key >> 1) + (log[i] << 7);
+            key = (key >> 1) + (char_log[i] << 7);
+            str1[2*(i-1)] = 'a';
+            str1[2*(i-1)+1] = 'a';
         }
-        // if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 0 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
-        //     str[0] = 'o';
-        //     str[1] = 'n';
-        //     str[2] = 'e';
-        //     str[3] = '\0';
-        // }
-        // if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 1 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
-        //     str[0] = 't';
-        //     str[1] = 'w';
-        //     str[2] = 'o';
-        //     str[3] = '\0';
-        // }
-        if (key == 0x16) {
-            str[0] = 'o';
-            str[1] = 'n';
-            str[2] = 'e';
-            str[3] = '\0';
+        // example switch statement. will make a function with the rest of the characters we need from https://techdocs.altium.com/display/FPGA/PS2+Keyboard+Scan+Codes
+        switch (key) {
+            case 0x16:
+                str1[0] = 'o';
+                str1[1] = 'n';
+                str1[2] = 'e';
+                str1[3] = '\0';
+                break;
+            case 0x1e:
+                str1[0] = 't';
+                str1[1] = 'w';
+                str1[2] = 'o';
+                str1[3] = '\0';
+                break;
         }
 
-        spi1_display1(str);
+        // call the displays on each for loop
+        spi1_display1(str1);
         spi1_display2(str2);
     }
     
     return 0;
 }
 
+// enables input ports for data and clock of the keyboard
 void initb() {
     // enable clock
     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
@@ -100,6 +107,7 @@ void initb() {
     GPIOB->MODER &= 0xffffffcc;
 }
 
+// turns port pb0 into exti, listening for falling edge
 void init_exti() {
     // clock on
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
@@ -113,35 +121,23 @@ void init_exti() {
     NVIC->ISER[0] |= 0b100000;
 }
 
-
+// on falling edge we log a bit and increment bitnum, resets at 33 which is one key press
 void EXTI0_1_IRQHandler() {
     // acknowledge
     EXTI->PR = EXTI_PR_PR0;
-    // // first line string
-    // itoa(dignum, str2, 10);
-    // // display line 1
-    // spi1_display1(str2);
-    
-    // // if we are on a data bit
-    // if (dignum > 0 && dignum < 9) {
-    //     // 
-    //     key = (key >> 1) + (((GPIOB->IDR >> 2) & 1) << 7);
-    // }
-    log[dignum] = ((GPIOB->IDR >> 2) & 1);
-    dignum++;
-    if (dignum == 33) {
-        dignum = 0;
+    // add bit to log
+    char_log[bitnum] = ((GPIOB->IDR >> 2) & 1);
+    // increment bitnum
+    bitnum++;
+    // keypress done
+    if (bitnum == 33) {
+        bitnum = 0;
+        curpos++;
+        if (curpos > 15) { curpos = 0; }
     }
-    // if (dignum == 999999) {
-    //     if (key == 0x16) { key = '1'; }
-    //     char pk[2];
-    //     pk[0] = key;
-    //     pk[1] = '\0';
-    //     spi1_display2(pk);
-    //     dignum = 0;
-    // }   
 }
 
+// copied from lab 6, powers the oled
 void init_spi1() {
     // nss is pa15, sck is pa5, mosi is pa7
     // configure for 10 bits
@@ -173,6 +169,7 @@ void init_spi1() {
     SPI1->CR1 |= SPI_CR1_SPE;
 }
 
+// also from lab 6
 void spi1_init_oled() {
     // wait 1 ms
     nano_wait(1000000);
@@ -192,16 +189,20 @@ void spi1_init_oled() {
     spi_cmd(0x0c);
 }
 
+// write to line 1
 void spi1_display1(const char *string) {
     // cursor to home position
     spi_cmd(0x02);
     // for each char in string
     for (int i = 0; i < strlen(string); i++) {
-        // call spi data on char
-        spi_data(string[i]);
+        // if we are on cursor position and its toggled:
+        if ((i == curpos) && tog) { spi_data((char)0xff); }
+        // else:
+        else { spi_data(string[i]); }
     }
 }
 
+// write to line 2
 void spi1_display2(const char *string) {
     // move cursor to second row
     // for each char in string
@@ -219,110 +220,40 @@ void nano_wait(unsigned int n) {
 }
 
 void spi_cmd(unsigned int data) {
+    // this waits for the previous transmission to end and sends the next character
     while(!(SPI1->SR & SPI_SR_TXE)) {}
     SPI1->DR = data;
 }
 
 void spi_data(unsigned int data) {
+    // i believe this sends a character and increments the cursor position
     spi_cmd(data | 0x200);
 }
 
 /**
- * @brief Init GPIO port B
- *        Pin 0: input
- *        Pin 4: input
- *        Pin 8-11: output
- *
+ * @brief Setup timer 7 as described in lab handout
+ *  
+ *      this timer turns the cursor on and off
+ * 
  */
-// void initb() {
-//     // turn on clock
-//     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-//     // // reseting the register:
-//     GPIOB->MODER &= 0x00000000;
-//     // forces 0s in the last 2 bits
-//     GPIOB->MODER &= 0xfffffffc;
-//     // forces 0s in bits 8 and 9 (0-indexed like in manual)
-//     GPIOB->MODER &= 0xfffffcff;
-//     // 1s in bits 16, 18, 20, 22 (0-indexed like in manual)
-//     GPIOB->MODER |= 0x550000;
-//     // 0s in bits 17, 19, 21, 23 (0-indexed like in manual)
-//     GPIOB->MODER &= 0xff55ffff;
-// }
+void setup_tim7() {
+    // turn it on
+    RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+    // update prescaler value
+    TIM7->PSC = 4799;
+    // reload val
+    TIM7->ARR = 2999;
+    //uie in dier
+    TIM7->DIER |= TIM_DIER_UIE;
+    // enable interrupt
+    NVIC->ISER[0] |= (1 << 18);
+    // enable timer
+    TIM7->CR1 |= TIM_CR1_CEN;
+}
 
-// /**
-//  * @brief Init GPIO port C
-//  *        Pin 0-3: inputs with internal pull down resistors
-//  *        Pin 4-7: outputs
-//  *
-//  */
-// void initc() {
-//     // turn on clock
-//     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-//     // 0 moder register
-//     // GPIOC->MODER &= 0x000000;
-//     // settings 01s for outputs 4, 5, 6, 7
-//     // GPIOC->MODER |= 0x00005500;
-//     // GPIOC->MODER |= ~0x0f;
-//     // 0 the pupdr register
-
-//     GPIOC->MODER &= ~((85 << 4*2));
-//     GPIOC->MODER |= 0x00005500;
-
-//     GPIOC->PUPDR &= 0x00000000;
-//     // set 10 on pins 0-3
-//     GPIOC->PUPDR |= 0xaa;
-// }
-
-// /**
-//  * @brief Set GPIO port B pin to some value
-//  *
-//  * @param pin_num: Pin number in GPIO B
-//  * @param val    : Pin value, if 0 then the
-//  *                 pin is set low, else set high
-//  */
-// void setn(int32_t pin_num, int32_t val) {
-//     // GPIOC->BSRR ^= GPIOC->BSRR;
-//     if (val == 0) {
-//         GPIOB->BSRR |= 1 << (16 + pin_num);
-//     }
-//     else {
-//         GPIOB->BSRR |= 1 << pin_num;
-//     }
-// }
-
-// /**
-//  * @brief Read GPIO port B pin values
-//  *
-//  * @param pin_num   : Pin number in GPIO B to be read
-//  * @return int32_t  : 1: the pin is high; 0: the pin is low
-//  */
-// int32_t readpin(int32_t pin_num) {
-//     return (GPIOB->IDR & (1 << pin_num)) >> pin_num;
-// }
-
-// /**
-//  * @brief Control LEDs with buttons
-//  *        Use PB0 value for PB8
-//  *        Use PB4 value for PB9
-//  *
-//  */
-// void buttons(void) {
-//     int32_t button0 = readpin(0);
-//     setn(8, button0);
-//     int32_t button4 = readpin(4);
-//     setn(9, button4);
-// }
-
-// /**
-//  * @brief Control LEDs with keypad
-//  * 
-//  */
-// void keypad(void) {
-//     for(int i=0; i < 4; i++) {
-//         GPIOC->ODR = 1 << (i+4);
-//         nano_wait(1000000);
-//         int32_t inputs = GPIOC->IDR & 0xf;
-//         int32_t input = (inputs & (1 << i)) >> i;
-//         setn(8 + i, input);
-//     }
-// }
+void TIM7_IRQHandler() {
+    // acknowledge
+    TIM7->SR &= ~TIM_SR_UIF;
+    // toggle cursor
+    tog = !tog;
+}
