@@ -52,29 +52,42 @@ int main(void) {
 
     init_spi1();
     spi1_init_oled();
-    spi1_display1("hello");
-    spi1_display2("friend");
 
     nano_wait(100000000);
     dignum = 0;
 
     char str[12];
+    char str2[12];
+
+
 
     for(;;) {
-        itoa(dignum, str, 10);
-        if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 0 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
+        itoa(dignum, str2, 10);
+        unsigned char key = 0;
+        for (int i = 1; i < 9; i++) {
+            key = (key >> 1) + (log[i] << 7);
+        }
+        // if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 0 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
+        //     str[0] = 'o';
+        //     str[1] = 'n';
+        //     str[2] = 'e';
+        //     str[3] = '\0';
+        // }
+        // if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 1 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
+        //     str[0] = 't';
+        //     str[1] = 'w';
+        //     str[2] = 'o';
+        //     str[3] = '\0';
+        // }
+        if (key == 0x16) {
             str[0] = 'o';
             str[1] = 'n';
             str[2] = 'e';
             str[3] = '\0';
         }
-        if(log[1] == 0 && log[2] == 1 && log[3] == 1 && log[4] == 1 && log[5] == 1 && log[6] == 0 && log[7] == 0 && log[8] == 0) {
-            str[0] = 't';
-            str[1] = 'w';
-            str[2] = 'o';
-            str[3] = '\0';
-        }
+
         spi1_display1(str);
+        spi1_display2(str2);
     }
     
     return 0;
