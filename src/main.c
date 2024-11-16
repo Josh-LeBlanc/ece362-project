@@ -57,7 +57,12 @@ int main(void) {
     nano_wait(100000000);
     dignum = 0;
 
-    for(;;) {}
+    char str[12];
+
+    for(;;) {
+        itoa(dignum, str, 10);
+        spi1_display1(str);
+    }
     
     return 0;
 }
@@ -85,27 +90,27 @@ void init_exti() {
 char key = 0;
 
 void EXTI0_1_IRQHandler() {
+    // acknowledge
     EXTI->PR = EXTI_PR_PR0;
-    char p[12];
-    p[0] = '\0';
-    char str1[5] = "dn: ";
-    char str2[6];
-    itoa(dignum, str2, 10);
-    strncat(p, str1, sizeof(p) - strlen(p) - 1);
-    strncat(p, str2, sizeof(p) - strlen(p) - 1);
-    spi1_display1(p);
-    if (dignum > 0 && dignum < 9) {
-        key = (key >> 1) + (((GPIOB->IDR >> 2) & 1) << 7);
-    }
+    // // first line string
+    // itoa(dignum, str2, 10);
+    // // display line 1
+    // spi1_display1(str2);
+    
+    // // if we are on a data bit
+    // if (dignum > 0 && dignum < 9) {
+    //     // 
+    //     key = (key >> 1) + (((GPIOB->IDR >> 2) & 1) << 7);
+    // }
     dignum++;
-    if (dignum == 11) {
-        if (key == 0x16) { key = '1'; }
-        char pk[2];
-        pk[0] = key;
-        pk[1] = '\0';
-        spi1_display2(pk);
-        dignum = 0;
-    }
+    // if (dignum == 999999) {
+    //     if (key == 0x16) { key = '1'; }
+    //     char pk[2];
+    //     pk[0] = key;
+    //     pk[1] = '\0';
+    //     spi1_display2(pk);
+    //     dignum = 0;
+    // }   
 }
 
 void init_spi1() {
