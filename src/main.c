@@ -23,7 +23,7 @@ const char* username = "jleblan";
 #include <string.h>
 #include <stdlib.h>
 
-void initb();
+void init_gpio();
 void init_exti();
 void spi1_init_oled();
 void init_spi1();
@@ -48,19 +48,27 @@ char char_log[33];
 int tog = 0;
 char str1[17] = {0};
 char str2[17] = {0};
-int pcurpos = 0;
 int curpos = 0;
 unsigned char key = 0;
+int paused = 0;
+int scroll = 0;
+
+char* start_string1 = " press start";
+char* start_string2 = "   to begin";
+char* target_string = 0;
+char* corp1 = "within the capitalist system all methods for raising the social productiveness of labour are brought about at the cost of the individual labourer; all means for the development of production transform themselves into means of domination over, and exploitation of, the producers; they mutilate the labourer into a fragment of a man, degrade him to the level of an appendage of a machine, destroy every remnant of charm in his work and turn it into a hated toil; they estrange from him the intellectual potentialities of the labour process in the same proportion as science is incorporated in it as an independent power; they distort the conditions under which he works, subject him during the labour process to a despotism the more hateful for its meanness; they transform his life-time into working-time, and drag his wife and child beneath the wheels of the Juggernaut of capital.";
 
 int main(void) {
     internal_clock(); // do not comment!
 
     // need for 
-    initb();
+    init_gpio();
     init_exti();
 
     init_spi1();
     spi1_init_oled();
+    spi1_display1(start_string1);
+    spi1_display2(start_string2);
 
     nano_wait(100000000);
     bitnum = 0;
@@ -68,20 +76,19 @@ int main(void) {
     setup_tim7();
 
     for(;;) {
-        // show bitnum in str2
-        itoa(bitnum, str2, 10);
-        str2[strlen(str2)] = '\0';
-        // read key from log
+        // // show bitnum in str2
+        // itoa(bitnum, str2, 10);
+        // str2[strlen(str2)] = '\0';
         for (int i = 1; i < 9; i++) {
             key = (key >> 1) + (char_log[i] << 7);
             // key_to_char returns the char based on the character
             str1[curpos] = key_to_char(key);
             // fill up row 1 with a's
         }
-        pcurpos = curpos;
         // example switch statement. will make a function with the rest of the characters we need from https://techdocs.altium.com/display/FPGA/PS2+Keyboard+Scan+Codes
 
         // call the displays on each for loop
+        // if scroll
         spi1_display1(str1);
         spi1_display2(str2);
     }
@@ -90,31 +97,37 @@ int main(void) {
 }
 
 // enables input ports for data and clock of the keyboard
-void initb() {
-    // enable clock
+void init_gpio() {
+    // enable clocks
     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-    // pb0, 2 inputs
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+    // pb0, 2, pa0, pc0 inputs
+    GPIOA->MODER &= 0xfffffffc;
     GPIOB->MODER &= 0xffffffcc;
+    GPIOC->MODER &= 0xfffffffc;
 }
 
 // turns port pb0 into exti, listening for falling edge
 void init_exti() {
     // clock on
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-    // setting pb0 as interrupt source
-    SYSCFG->EXTICR[0] |= 0x1;
+    // setting pb0 as interrupt source and pa0 for 2 and pc0 for 4
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PB | SYSCFG_EXTICR1_EXTI2_PA;
+    SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI4_PC;
     // falling edge
     EXTI->FTSR |= 1;
+    EXTI->RTSR |= (1 << 2) | (1 << 4);
     // unmask
-    EXTI->IMR |= 0b00001;
+    EXTI->IMR |= 0b10101;
     // enable in NVIC
-    NVIC->ISER[0] |= 0b100000;
+    NVIC->ISER[0] |= 0b11100000;
 }
 
 // on falling edge we log a bit and increment bitnum, resets at 33 which is one key press
 void EXTI0_1_IRQHandler() {
     // acknowledge
-    EXTI->PR = EXTI_PR_PR0;
+    EXTI->PR |= EXTI_PR_PR0;
     // add bit to log
     char_log[bitnum] = ((GPIOB->IDR >> 2) & 1);
     // increment bitnum
@@ -125,6 +138,28 @@ void EXTI0_1_IRQHandler() {
         curpos++;
         if (curpos > 15) { curpos = 0; }
     }
+}
+
+void EXTI2_3_IRQHandler() {
+    // ack
+    EXTI->PR |= EXTI_PR_PR2;
+    if (paused) {
+        // restart
+    }
+    else {
+        // start
+        target_string = corp1;
+        for (int i = 0; i < 16; i++) {
+            str1[i] = target_string[i];
+            str2[i] = target_string[i + 16];
+        }
+    }
+}
+
+void EXTI4_15_IRQHandler() {
+    // ack
+    EXTI->PR |= EXTI_PR_PR4;
+    // set everything to zero and call start
 }
 
 // copied from lab 6, powers the oled
@@ -187,7 +222,7 @@ void spi1_display1(const char *string) {
     for (int i = 0; i < strlen(string); i++) {
         // if we are on cursor position and its toggled:
         if (i == curpos) { 
-            tog ? spi_data((char)0xfe) : spi_data((char)0xff);
+            tog ? spi_data(str1[i]) : spi_data((char)0xff);
         }
         // else:
         else { spi_data(string[i]); }
