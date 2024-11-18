@@ -52,6 +52,8 @@ int curpos = 0;
 unsigned char key = 0;
 int paused = 0;
 int scroll = 0;
+int pchar_num = 0;
+int char_num = 0;
 
 char* start_string1 = " press start";
 char* start_string2 = "   to begin";
@@ -72,6 +74,7 @@ int main(void) {
 
     nano_wait(100000000);
     bitnum = 0;
+    pchar_num = 0;
 
     setup_tim7();
 
@@ -89,6 +92,16 @@ int main(void) {
 
         // call the displays on each for loop
         // if scroll
+        if (scroll) {
+            // if there's more than 16 chars left
+            scroll = 0;
+            if (strlen(target_string + pchar_num) >= 16) {
+                for (int i = 0; i < 16; i++) {
+                    str1[i] = str2[i];
+                    str2[i] = target_string[pchar_num++];
+                }
+            }
+        }
         spi1_display1(str1);
         spi1_display2(str2);
     }
@@ -135,8 +148,12 @@ void EXTI0_1_IRQHandler() {
     // keypress done
     if (bitnum == 33) {
         bitnum = 0;
+        char_num++;
         curpos++;
-        if (curpos > 15) { curpos = 0; }
+        if (curpos > 15) {
+            curpos = 0;
+            scroll = 1;
+        }
     }
 }
 
@@ -151,7 +168,8 @@ void EXTI2_3_IRQHandler() {
         target_string = corp1;
         for (int i = 0; i < 16; i++) {
             str1[i] = target_string[i];
-            str2[i] = target_string[i + 16];
+            str2[i] = target_string[16 + i];
+            pchar_num += 2;
         }
     }
 }
