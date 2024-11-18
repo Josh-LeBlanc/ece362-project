@@ -35,6 +35,8 @@ void setup_tim7();
 char key_to_char(unsigned char);
 uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
 extern const char font[];
+volatile uint32_t time = 0;
+volatile uint32_t timer_overflow = 0;
 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
@@ -419,4 +421,59 @@ void display_WPM(int val) {
             bb_write_halfword(msg[d]);
             nano_wait(1);
         }
+}
+uint32_t calculate_elapsed_time(void) {
+    static uint32_t start_time = 0;
+    static int first_call = 1;
+
+    if (first_call) {
+        start_time = TIM2->CNT; // Save the initial counter value
+        first_call = 0;         // Mark first call as done
+        return 0;               // Return 0 since no time has passed
+    } else {
+        uint32_t current_time = TIM2->CNT; // Read the current counter value
+        if (current_time >= start_time) {
+            // Calculate elapsed time in seconds
+            time =((current_time - start_time)/100)+1;
+            //time = 420;
+        } else {
+            // Handle counter overflow
+            time = (((TIM2->ARR - start_time) + current_time)/100) + 1;
+            //time = 69;
+        }
+        if(timer_overflow > 1)
+        {
+            time += (timer_overflow-1)*10;
+            if(time %10 == 0)
+            {
+                time -= 10;
+            }
+            //time = 69;
+        }
+        return time;
+    }
+}
+
+void TIM2_IRQHandler(void) {
+    if (TIM2->SR & TIM_SR_UIF) { // Check for update interrupt flag
+        TIM2->SR &= ~TIM_SR_UIF; // Clear the interrupt flag
+        timer_overflow++;       // Increment the overflow counter
+    }
+}
+
+void init_timer(void) {
+    // Enable TIM2 clock
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+
+    // Configure TIM2: count up, no prescaler, continuous mode
+    TIM2->PSC = 47999;       // Prescaler (assuming 8 MHz clock, this makes 1ms ticks)
+    TIM2->ARR = 999;        // Auto-reload value for 1-second overflow
+    TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
+    NVIC_EnableIRQ(TIM2_IRQn);
+    TIM2->CR1 |= TIM_CR1_CEN; // Enable the timer
+}
+
+void calculate_WPM(int n) //n in number of words
+{
+    display_WPM(60 * n / time);
 }
