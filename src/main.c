@@ -60,7 +60,10 @@ char curkey = 0;
 
 char* start_string1 = " press start";
 char* start_string2 = "   to begin";
+char* paused1 = "    paused   ";
+char* clear = "                ";
 char* target_string = 0;
+char* attempt_string = 0;
 char* corp1 = "within the capitalist system all methods for raising the social productiveness of labour are brought about at the cost of the individual labourer; all means for the development of production transform themselves into means of domination over, and exploitation of, the producers; they mutilate the labourer into a fragment of a man, degrade him to the level of an appendage of a machine, destroy every remnant of charm in his work and turn it into a hated toil; they estrange from him the intellectual potentialities of the labour process in the same proportion as science is incorporated in it as an independent power; they distort the conditions under which he works, subject him during the labour process to a despotism the more hateful for its meanness; they transform his life-time into working-time, and drag his wife and child beneath the wheels of the juggernaut of capital.";
 char* corp2 = "ok this is going to be short";
 
@@ -79,6 +82,7 @@ int main(void) {
     nano_wait(100000000);
     bitnum = 0;
     pchar_num = 0;
+    paused = 0;
 
     setup_tim7();
 
@@ -108,13 +112,44 @@ int main(void) {
                     str2[i] = target_string[pchar_num++];
                 }
             } else {
-                for (int i = 0; i < 16; i++) {
+                for (int i = 0; i < strlen(target_string) - char_num; i++) {
                     str1[i] = str2[i];
                     str2[i] = ' ';
                 }
+                for (int i = strlen(target_string) - char_num; i < 16; i++) {
+                    str1[i] = ' ';
+                }
+                // for (int i = 0; i < 2; i++) {
+                //     itoa(strlen(target_string), str2, 10);
+                //     itoa(chars_correct, str2 + 4, 10);
+                // }
             } 
         }
+        if (paused) {
+            for (int i = 0; i < 16; i ++) {
+                str1[i] = paused1[i];
+                str2[i] = clear[i];
+            }
+            spi1_display1(str1);
+            spi1_display2(str2);
+            continue;
+        }
         // call the displays on each for loop
+        // show accuracy or attstring
+        if(char_num == strlen(target_string)) {
+            // game end
+            float accuracy = (float)chars_correct / (float)strlen(target_string);
+            // show accuracy
+            itoa(strlen(target_string), str2, 10);
+            itoa(chars_correct, str1, 10);
+            spi1_display1(str1);
+            spi1_display2(str2);
+            // // attempt string
+            // for(int i = 0; i < 16; i++) {
+            //     str2[i] = attempt_string[i];
+            // }
+
+        }
         spi1_display1(str1);
         spi1_display2(str2);
     }
@@ -132,6 +167,8 @@ void init_gpio() {
     GPIOA->MODER &= 0xfffffffc;
     GPIOB->MODER &= 0xffffffcc;
     GPIOC->MODER &= 0xfffffffc;
+    // pull down on pc0
+    GPIOC->PUPDR |= 2;
 }
 
 // turns port pb0 into exti, listening for falling edge
@@ -142,12 +179,14 @@ void init_exti() {
     SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PB | SYSCFG_EXTICR1_EXTI2_PA;
     SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI4_PC;
     // falling edge
-    EXTI->FTSR |= 1;
-    EXTI->RTSR |= (1 << 2) | (1 << 4);
+    EXTI->FTSR |= 1 | (1 << 4);
+    EXTI->RTSR |= (1 << 2);
     // unmask
     EXTI->IMR |= 0b10101;
     // enable in NVIC
-    NVIC->ISER[0] |= 0b11100000;
+    NVIC_EnableIRQ(EXTI0_1_IRQn);
+    NVIC_EnableIRQ(EXTI2_3_IRQn);
+    NVIC_EnableIRQ(EXTI4_15_IRQn);
 }
 
 // on falling edge we log a bit and increment bitnum, resets at 33 which is one key press
@@ -161,13 +200,15 @@ void EXTI0_1_IRQHandler() {
     // keypress done
     if (bitnum == 33) {
         bitnum = 0;
+        curkey = key_to_char(key);
+        attempt_string[char_num] = curkey;
         char_num++;
         curpos++;
         if (key == 0x66) { 
             curpos--;
             char_num--;
         }
-        curkey = key_to_char(key);
+        if (curkey == target_string[char_num - 1]) { chars_correct++; }
         if (curpos > 15) {
             curpos = 0;
             scroll = 1;
@@ -184,6 +225,7 @@ void EXTI2_3_IRQHandler() {
     else {
         // start
         target_string = corp2;
+        attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
         for (int i = 0; i < 16; i++) {
             str1[i] = target_string[i];
             str2[i] = target_string[16 + i];
@@ -195,6 +237,13 @@ void EXTI2_3_IRQHandler() {
 void EXTI4_15_IRQHandler() {
     // ack
     EXTI->PR |= EXTI_PR_PR4;
+    if (str1[0] == 'x') {
+        str1[0] = 'o';
+    } else {
+        str1[0] = 'x';
+    } 
+    // paused = ~paused;
+    // nano_wait(1000000000);
     // set everything to zero and call start
 }
 
@@ -409,7 +458,9 @@ char key_to_char(unsigned char key) {
                 curpos = curpos - 1;
                 char_num = char_num - 1;
             }
-            return target_string[char_num + 1];
+            if (target_string[char_num] == attempt_string[char_num]) { chars_correct--; }
+
+            return target_string[char_num];
         case 0x29:
             return ' ';
         default:
