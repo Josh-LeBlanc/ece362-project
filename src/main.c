@@ -36,6 +36,15 @@ void setup_tim7();
 char key_to_char(unsigned char);
 char* get_corp();
 int min(int, int);
+uint32_t calculate_elapsed_time();
+void init_timer();
+void calculate_WPM(int);
+void small_delay();
+void setup_bb();
+void enable_ports();
+void bb_write_bit(int val);
+void bb_write_halfword(int halfword);
+void display_WPM(int val);
 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
@@ -46,6 +55,10 @@ int min(int, int);
 extern void internal_clock(void);
 void nano_wait(unsigned int n);
 
+volatile uint32_t timer = 0;
+volatile uint32_t timer_overflow = 0;
+uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
+extern const char font[];
 int bitnum = 0;
 char char_log[33];
 int tog = 0;
@@ -61,21 +74,30 @@ int game_over = 0;
 int chars_correct = 0;
 char curkey = 0;
 int tslen = 0;
+int num_words = 0;
+int accuracy = 0;
 
-char* start_string1 = " press start";
-char* start_string2 = "   to begin";
+char* start_string1 = "  press start";
+char* start_string2 = "    to begin";
 char* end_string1 = "      game      ";
 char* end_string2 = "      over      ";
 char* paused1 = "    paused      ";
 char* clear = "                ";
 char* target_string = 0;
 char* attempt_string = 0;
+int ns[] = {
+    13,
+    7,
+    15,
+    14,
+    18
+};
 char* corps[] = {
     "within the capitalist system all methods for raising the social productiveness of labour", 
     "ok this is going to be short",
-    "In reality, the laborer belongs to capital before he has sold himself to capital. His ",
-    "Education is free. Freedoom of education shall be enjoyed under the condition fixed by ",
-    "Just as man is governed, in religion, by the products of his own brain, so, in capitalist" 
+    "in reality, the laborer belongs to capital before he has sold himself to capital. his ",
+    "education is free. freedoom of education shall be enjoyed under the condition fixed by ",
+    "just as man is governed, in religion, by the products of his own brain, so, in capitalist" 
 };
 int num_corps = 5;
 
@@ -147,6 +169,10 @@ int main(void) {
             // game end
             paused = 1;
             game_over = 1;
+            calculate_elapsed_time(0);
+            calculate_WPM(num_words);
+            accuracy = (int)(100 * (float)chars_correct / (float)tslen);
+
             // float accuracy = (float)chars_correct / (float)strlen(target_string);
             // // show accuracy
             // itoa(strlen(target_string), str2, 10);
@@ -276,6 +302,7 @@ void EXTI2_3_IRQHandler() {
             str2[i] = target_string[16 + i];
         }
         pchar_num = min(tslen, 32);
+        calculate_elapsed_time(1);
     }
     // for (int i = 0; i < 16; i++) { str2[i] = 'x'; }
 }
@@ -525,9 +552,145 @@ char key_to_char(unsigned char key) {
 
 char* get_corp() {
     int ind = rand() % (num_corps);
+    num_words = ns[ind];
     return corps[ind];
 }
 
 int min(int a, int b) {
     return (a - b) > 0 ? b : a;
+}
+
+const uint8_t map[] = {
+    0x3F, // 0
+    0x06, // 1
+    0x5B, // 2
+    0x4F, // 3
+    0x66, // 4
+    0x6D, // 5
+    0x7D, // 6
+    0x07, // 7
+    0x7F, // 8
+    0x6F  // 9
+};
+
+void small_delay(void) {
+    nano_wait(5);
+}
+
+void setup_bb(void) {
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    GPIOB->MODER &= ~(GPIO_MODER_MODER12 | GPIO_MODER_MODER13 | GPIO_MODER_MODER15);
+    GPIOB->MODER |= (GPIO_MODER_MODER12_0 | GPIO_MODER_MODER13_0 | GPIO_MODER_MODER15_0);
+    GPIOB->ODR |= GPIO_ODR_12;
+    GPIOB->ODR &= ~GPIO_ODR_13;
+}
+
+void enable_ports(void) {
+    // Only enable port C for the keypad
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+    GPIOC->MODER &= ~0xffff;
+    GPIOC->MODER |= 0x55 << (4*2);
+    GPIOC->OTYPER &= ~0xff;
+    GPIOC->OTYPER |= 0xf0;
+    GPIOC->PUPDR &= ~0xff;
+    GPIOC->PUPDR |= 0x55;
+}
+
+void bb_write_bit(int val) {
+    // CS (PB12)
+    // SCK (PB13)
+    // SDI (PB15)
+    if(val)
+    {
+        GPIOB->ODR |= GPIO_ODR_15;
+    }
+    else
+    {
+        GPIOB->ODR &= ~GPIO_ODR_15;
+    }
+    small_delay();
+    GPIOB->ODR |= GPIO_ODR_13;
+    small_delay();
+    GPIOB->ODR &= ~GPIO_ODR_13;
+}
+void bb_write_halfword(int halfword) {
+    GPIOB->ODR &= ~GPIO_ODR_12;
+    for(int i = 15; i >= 0; i--)
+    {
+        int bit = (halfword >> i) & 1;
+        bb_write_bit(bit);
+    }
+    GPIOB->ODR |= GPIO_ODR_12;
+}
+void display_WPM(int val) {
+    int hundreds = val/ 100;
+    int tens = (val /10) % 10;
+    int ones = val % 10;
+    msg[0] |= map[accuracy / 100];
+    msg[1] |= map[(accuracy / 10) % 10];
+    msg[2] |= map[accuracy % 10];
+    msg[3] |= font[' '];
+    msg[4] |= font[' '];
+    msg[5] |= map[hundreds];
+    msg[6] |= map[tens];
+    msg[7] |= map[ones];
+    for(;;)
+        for(int d=0; d<8; d++) {
+            bb_write_halfword(msg[d]);
+            nano_wait(1);
+        }
+}
+uint32_t calculate_elapsed_time(int first_call) {
+    static uint32_t start_time = 0;
+
+    if (first_call) {
+        start_time = TIM2->CNT; // Save the initial counter value
+        first_call = 0;         // Mark first call as done
+        return 0;               // Return 0 since no time has passed
+    } else {
+        uint32_t current_time = TIM2->CNT; // Read the current counter value
+        if (current_time >= start_time) {
+            // Calculate elapsed time in seconds
+            timer =((current_time - start_time)/100)+1;
+            //time = 420;
+        } else {
+            // Handle counter overflow
+            timer = (((TIM2->ARR - start_time) + current_time)/100) + 1;
+            //time = 69;
+        }
+        if(timer_overflow > 1)
+        {
+            timer += (timer_overflow-1)*10;
+            if(timer %10 == 0)
+            {
+                timer -= 10;
+            }
+            //time = 69;
+        }
+        return timer;
+    }
+}
+
+void TIM2_IRQHandler(void) {
+    if (TIM2->SR & TIM_SR_UIF) { // Check for update interrupt flag
+        TIM2->SR &= ~TIM_SR_UIF; // Clear the interrupt flag
+        timer_overflow++;       // Increment the overflow counter
+    }
+}
+
+void init_timer(void) {
+    // Enable TIM2 clock
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+
+    // Configure TIM2: count up, no prescaler, continuous mode
+    TIM2->PSC = 47999;       // Prescaler (assuming 8 MHz clock, this makes 1ms ticks)
+    TIM2->ARR = 999;        // Auto-reload value for 1-second overflow
+    TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
+    NVIC_EnableIRQ(TIM2_IRQn);
+    TIM2->CR1 |= TIM_CR1_CEN; // Enable the timer
+}
+
+void calculate_WPM(int n) //n in number of words
+{
+    display_WPM(60 * n / timer);
 }
