@@ -60,7 +60,7 @@ char curkey = 0;
 
 char* start_string1 = " press start";
 char* start_string2 = "   to begin";
-char* paused1 = "    paused   ";
+char* paused1 = "    paused      ";
 char* clear = "                ";
 char* target_string = 0;
 char* attempt_string = 0;
@@ -80,6 +80,7 @@ int main(void) {
     spi1_display2(start_string2);
 
     nano_wait(100000000);
+    game_over = 1;
     bitnum = 0;
     pchar_num = 0;
     paused = 0;
@@ -125,19 +126,11 @@ int main(void) {
                 // }
             } 
         }
-        if (paused) {
-            for (int i = 0; i < 16; i ++) {
-                str1[i] = paused1[i];
-                str2[i] = clear[i];
-            }
-            spi1_display1(str1);
-            spi1_display2(str2);
-            continue;
-        }
         // call the displays on each for loop
         // show accuracy or attstring
         if(char_num == strlen(target_string)) {
             // game end
+            game_over = 1;
             float accuracy = (float)chars_correct / (float)strlen(target_string);
             // show accuracy
             itoa(strlen(target_string), str2, 10);
@@ -150,8 +143,19 @@ int main(void) {
             // }
 
         }
-        spi1_display1(str1);
-        spi1_display2(str2);
+        if (!game_over) {
+            if (GPIOC->IDR & 1) {
+                paused = ~paused;
+                nano_wait(200000000);
+            }
+            if (paused) {
+                spi1_display1(paused1);
+                spi1_display2(clear);
+                continue;
+            }
+            spi1_display1(str1);
+            spi1_display2(str2);
+        }
     }
     
     return 0;
@@ -186,13 +190,14 @@ void init_exti() {
     // enable in NVIC
     NVIC_EnableIRQ(EXTI0_1_IRQn);
     NVIC_EnableIRQ(EXTI2_3_IRQn);
-    NVIC_EnableIRQ(EXTI4_15_IRQn);
+    // NVIC_EnableIRQ(EXTI4_15_IRQn);
 }
 
 // on falling edge we log a bit and increment bitnum, resets at 33 which is one key press
 void EXTI0_1_IRQHandler() {
     // acknowledge
-    EXTI->PR |= EXTI_PR_PR0;
+    EXTI->PR = EXTI_PR_PR0;
+    if (game_over) { return; }
     // add bit to log
     char_log[bitnum] = ((GPIOB->IDR >> 2) & 1);
     // increment bitnum
@@ -218,34 +223,43 @@ void EXTI0_1_IRQHandler() {
 
 void EXTI2_3_IRQHandler() {
     // ack
-    EXTI->PR |= EXTI_PR_PR2;
+    EXTI->PR = EXTI_PR_PR2;
     if (paused) {
         // restart
+        bitnum = 0;
+        char_num = 0;
+        pchar_num = 0;
+        curpos = 0;
+        scroll = 0;
+        paused = 0;
     }
     else {
         // start
         target_string = corp2;
-        attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
-        for (int i = 0; i < 16; i++) {
-            str1[i] = target_string[i];
-            str2[i] = target_string[16 + i];
-        }
-        pchar_num = strlen(target_string);
+        game_over = 0;
     }
+    attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
+    for (int i = 0; i < 16; i++) {
+        str1[i] = target_string[i];
+        str2[i] = target_string[16 + i];
+    }
+    pchar_num = strlen(target_string);
 }
 
-void EXTI4_15_IRQHandler() {
-    // ack
-    EXTI->PR |= EXTI_PR_PR4;
-    if (str1[0] == 'x') {
-        str1[0] = 'o';
-    } else {
-        str1[0] = 'x';
-    } 
-    // paused = ~paused;
-    // nano_wait(1000000000);
-    // set everything to zero and call start
-}
+// void EXTI4_15_IRQHandler() {
+//     // ack
+//     EXTI->PR = EXTI_PR_PR4;
+//     if (GPIOC->IDR & 1) {
+//         if (str1[0] == 'x') {
+//             str1[0] = 'o';
+//         } else {
+//             str1[0] = 'x';
+//         }
+//         nano_wait(10000000);
+//     }
+//     // paused = ~paused;
+//     // set everything to zero and call start
+// }
 
 // copied from lab 6, powers the oled
 void init_spi1() {
@@ -307,7 +321,11 @@ void spi1_display1(const char *string) {
     for (int i = 0; i < strlen(string); i++) {
         // if we are on cursor position and its toggled:
         if (i == curpos) { 
-            tog ? spi_data(str1[i]) : spi_data((char)0xff);
+            if (paused) {
+                tog ? spi_data(paused1[i]) : spi_data((char)0xff);
+            } else {
+                tog ? spi_data(str1[i]) : spi_data((char)0xff);
+            }
         }
         // else:
         else { spi_data(string[i]); }
