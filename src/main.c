@@ -22,6 +22,7 @@ const char* username = "jleblan";
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 void init_gpio();
 void init_exti();
@@ -33,6 +34,8 @@ void spi_cmd(unsigned int);
 void spi_data(unsigned int);
 void setup_tim7();
 char key_to_char(unsigned char);
+char* get_corp();
+int min(int, int);
 
 // void initc();
 // void setn(int32_t pin_num, int32_t val);
@@ -57,15 +60,24 @@ int char_num = 0;
 int game_over = 0;
 int chars_correct = 0;
 char curkey = 0;
+int tslen = 0;
 
 char* start_string1 = " press start";
 char* start_string2 = "   to begin";
+char* end_string1 = "      game      ";
+char* end_string2 = "      over      ";
 char* paused1 = "    paused      ";
 char* clear = "                ";
 char* target_string = 0;
 char* attempt_string = 0;
-char* corp1 = "within the capitalist system all methods for raising the social productiveness of labour are brought about at the cost of the individual labourer; all means for the development of production transform themselves into means of domination over, and exploitation of, the producers; they mutilate the labourer into a fragment of a man, degrade him to the level of an appendage of a machine, destroy every remnant of charm in his work and turn it into a hated toil; they estrange from him the intellectual potentialities of the labour process in the same proportion as science is incorporated in it as an independent power; they distort the conditions under which he works, subject him during the labour process to a despotism the more hateful for its meanness; they transform his life-time into working-time, and drag his wife and child beneath the wheels of the juggernaut of capital.";
-char* corp2 = "ok this is going to be short";
+char* corps[] = {
+    "within the capitalist system all methods for raising the social productiveness of labour", 
+    "ok this is going to be short",
+    "In reality, the laborer belongs to capital before he has sold himself to capital. His ",
+    "Education is free. Freedoom of education shall be enjoyed under the condition fixed by ",
+    "Just as man is governed, in religion, by the products of his own brain, so, in capitalist" 
+};
+int num_corps = 5;
 
 int main(void) {
     internal_clock(); // do not comment!
@@ -88,6 +100,7 @@ int main(void) {
     setup_tim7();
 
     for(;;) {
+        // if(game_over) { continue; }
         for (int i = 1; i < 9; i++) {
             // read for key changes
             key = (key >> 1) + (char_log[i] << 7);
@@ -99,25 +112,27 @@ int main(void) {
         if (scroll) {
             // if there's more than 16 chars left
             scroll = 0;
-            if (strlen(target_string + pchar_num) >= 16) {
+            if (tslen - char_num > 32) {
                 for (int i = 0; i < 16; i++) {
                     str1[i] = str2[i];
                     str2[i] = target_string[pchar_num++];
                 }
-            } else if (strlen(target_string + pchar_num)) {
+            } else if (tslen - char_num != 0) {
                 for (int i = 0; i < 16; i++) {
                     str1[i] = str2[i];
                     str2[i] = ' ';
                 }
-                for (int i = 0; i < strlen(target_string + pchar_num); i++) {
+                for (int i = 0; i < tslen - 16 - char_num; i++) {
                     str2[i] = target_string[pchar_num++];
                 }
+                // itoa(char_num, str1, 10);
+                // itoa(tslen, str2, 10);
             } else {
                 for (int i = 0; i < strlen(target_string) - char_num; i++) {
                     str1[i] = str2[i];
                     str2[i] = ' ';
                 }
-                for (int i = strlen(target_string) - char_num; i < 16; i++) {
+                for (int i = tslen - char_num; i < 16; i++) {
                     str1[i] = ' ';
                 }
                 // for (int i = 0; i < 2; i++) {
@@ -128,23 +143,24 @@ int main(void) {
         }
         // call the displays on each for loop
         // show accuracy or attstring
-        if(char_num == strlen(target_string)) {
+        if((char_num == tslen) && tslen > 0) {
             // game end
+            paused = 1;
             game_over = 1;
-            float accuracy = (float)chars_correct / (float)strlen(target_string);
-            // show accuracy
-            itoa(strlen(target_string), str2, 10);
-            itoa(chars_correct, str1, 10);
-            spi1_display1(str1);
-            spi1_display2(str2);
-            // // attempt string
-            // for(int i = 0; i < 16; i++) {
-            //     str2[i] = attempt_string[i];
-            // }
+            // float accuracy = (float)chars_correct / (float)strlen(target_string);
+            // // show accuracy
+            // itoa(strlen(target_string), str2, 10);
+            // itoa(chars_correct, str1, 10);
+            // spi1_display1(str1);
+            // spi1_display2(str2);
+            // // // attempt string
+            // // for(int i = 0; i < 16; i++) {
+            // //     str2[i] = attempt_string[i];
+            // // }
 
         }
-        if (!game_over) {
-            if (GPIOC->IDR & 1) {
+        if (game_over == 0) {
+            if (GPIOA->IDR & 1) {
                 paused = ~paused;
                 nano_wait(200000000);
             }
@@ -152,9 +168,18 @@ int main(void) {
                 spi1_display1(paused1);
                 spi1_display2(clear);
                 continue;
+            } else {
+                spi1_display1(str1);
+                spi1_display2(str2);
             }
-            spi1_display1(str1);
-            spi1_display2(str2);
+        } else {
+            if (!paused) {
+                spi1_display1(start_string1);
+                spi1_display2(start_string2);
+            } else {
+                spi1_display1(end_string1);
+                spi1_display2(end_string2);
+            }
         }
     }
     
@@ -168,11 +193,11 @@ void init_gpio() {
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
     // pb0, 2, pa0, pc0 inputs
-    GPIOA->MODER &= 0xfffffffc;
+    GPIOA->MODER &= 0xffffffcc;
     GPIOB->MODER &= 0xffffffcc;
     GPIOC->MODER &= 0xfffffffc;
     // pull down on pc0
-    GPIOC->PUPDR |= 2;
+    // GPIOA->PUPDR |= 2 | (2 << 4);
 }
 
 // turns port pb0 into exti, listening for falling edge
@@ -181,12 +206,11 @@ void init_exti() {
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
     // setting pb0 as interrupt source and pa0 for 2 and pc0 for 4
     SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PB | SYSCFG_EXTICR1_EXTI2_PA;
-    SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI4_PC;
     // falling edge
     EXTI->FTSR |= 1 | (1 << 4);
     EXTI->RTSR |= (1 << 2);
     // unmask
-    EXTI->IMR |= 0b10101;
+    EXTI->IMR |= 0b101;
     // enable in NVIC
     NVIC_EnableIRQ(EXTI0_1_IRQn);
     NVIC_EnableIRQ(EXTI2_3_IRQn);
@@ -198,6 +222,7 @@ void EXTI0_1_IRQHandler() {
     // acknowledge
     EXTI->PR = EXTI_PR_PR0;
     if (game_over) { return; }
+    if (paused) { return; }
     // add bit to log
     char_log[bitnum] = ((GPIOB->IDR >> 2) & 1);
     // increment bitnum
@@ -232,18 +257,27 @@ void EXTI2_3_IRQHandler() {
         curpos = 0;
         scroll = 0;
         paused = 0;
+        game_over = 0;
+        attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
+        for (int i = 0; i < 16; i++) {
+            str1[i] = target_string[i];
+            str2[i] = target_string[16 + i];
+        }
+        pchar_num = min(tslen, 32);
     }
     else {
         // start
-        target_string = corp2;
+        target_string = get_corp();
+        tslen = strlen(target_string);
         game_over = 0;
+        attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
+        for (int i = 0; i < 16; i++) {
+            str1[i] = target_string[i];
+            str2[i] = target_string[16 + i];
+        }
+        pchar_num = min(tslen, 32);
     }
-    attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
-    for (int i = 0; i < 16; i++) {
-        str1[i] = target_string[i];
-        str2[i] = target_string[16 + i];
-    }
-    pchar_num = strlen(target_string);
+    // for (int i = 0; i < 16; i++) { str2[i] = 'x'; }
 }
 
 // void EXTI4_15_IRQHandler() {
@@ -321,7 +355,10 @@ void spi1_display1(const char *string) {
     for (int i = 0; i < strlen(string); i++) {
         // if we are on cursor position and its toggled:
         if (i == curpos) { 
-            if (paused) {
+            if (game_over && paused) {
+                tog ? spi_data(end_string1[i]) : spi_data((char)0xff);
+            }
+            else if (paused) {
                 tog ? spi_data(paused1[i]) : spi_data((char)0xff);
             } else {
                 tog ? spi_data(str1[i]) : spi_data((char)0xff);
@@ -484,4 +521,13 @@ char key_to_char(unsigned char key) {
         default:
             return ' ';
     }
+}
+
+char* get_corp() {
+    int ind = rand() % (num_corps);
+    return corps[ind];
+}
+
+int min(int a, int b) {
+    return (a - b) > 0 ? b : a;
 }
