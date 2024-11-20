@@ -646,6 +646,14 @@ void display_WPM(int val) {
     int tens = (val /10) % 10;
     int ones = val % 10;
     accuracy = (int)(100*(((float)chars_correct) / ((float)tslen)));
+    msg[0] &= ~(font[' ']);
+    msg[1] &= ~(font[' ']);
+    msg[2] &= ~(font[' ']);
+    msg[3] &= ~(font[' ']);
+    msg[4] &= ~(font[' ']);
+    msg[5] &= ~(font[' ']);
+    msg[6] &= ~(font[' ']);
+    msg[7] &= ~(font[' ']);
     msg[1] |= map[accuracy / 100];
     msg[2] |= map[(accuracy / 10) % 10];
     msg[3] |= map[accuracy % 10];
