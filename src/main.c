@@ -728,6 +728,7 @@ void init_timer(void) {
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
 
     // Configure TIM2: count up, no prescaler, continuous mode
+    //TIM2->CR1 |= ~TIM_CR1_CEN; // Enable the timer
     TIM2->PSC = 47999;       // Prescaler (assuming 8 MHz clock, this makes 1ms ticks)
     TIM2->ARR = 999;        // Auto-reload value for 1-second overflow
     TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
@@ -738,6 +739,7 @@ void init_timer(void) {
 void calculate_WPM(int n) //n in number of words
 {
     timer+=final_timer;
+    final_timer = 0;
     display_WPM(60*n/(timer/10));
     // display_WPM(accuracy);
 }
