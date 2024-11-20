@@ -176,7 +176,6 @@ int main(void) {
             game_over = 1;
             calculate_elapsed_time(0);
             accuracy = (int)(100 * ((float)chars_correct) / ((float)tslen));
-            itoa(accuracy, str2, 10);
             calculate_WPM(num_words);
 
             // float accuracy = (float)chars_correct / (float)strlen(target_string);
@@ -215,7 +214,7 @@ int main(void) {
                 spi1_display1(start_string1);
                 spi1_display2(start_string2);
             } else {
-                spi1_display1(str2);
+                spi1_display1(end_string1);
                 spi1_display2(end_string2);
             }
         }
@@ -654,6 +653,14 @@ void display_WPM(int val) {
     msg[5] &= ~(font[' ']);
     msg[6] &= ~(font[' ']);
     msg[7] &= ~(font[' ']);
+    msg[0] |= (font[' ']);
+    msg[1] |= (font[' ']);
+    msg[2] |= (font[' ']);
+    msg[3] |= (font[' ']);
+    msg[4] |= (font[' ']);
+    msg[5] |= (font[' ']);
+    msg[6] |= (font[' ']);
+    msg[7] |= (font[' ']);
     msg[1] |= map[accuracy / 100];
     msg[2] |= map[(accuracy / 10) % 10];
     msg[3] |= map[accuracy % 10];
