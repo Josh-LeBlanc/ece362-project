@@ -109,6 +109,10 @@ int main(void) {
     init_gpio();
     init_exti();
 
+    enable_ports();  // Initialize GPIO
+    setup_bb();
+    init_timer();
+
     init_spi1();
     spi1_init_oled();
     spi1_display1(start_string1);
@@ -166,7 +170,7 @@ int main(void) {
         }
         // call the displays on each for loop
         // show accuracy or attstring
-        if((char_num == tslen) && tslen > 0) {
+        if((char_num == tslen) && tslen > 0 && !(paused & game_over)) {
             // game end
             paused = 1;
             game_over = 1;
@@ -191,7 +195,6 @@ int main(void) {
                 bb_write_halfword(msg[d]);
                 nano_wait(1);
             }
-        }
         }
         if (game_over == 0) {
             if (GPIOA->IDR & 1) {
@@ -655,6 +658,7 @@ uint32_t calculate_elapsed_time(int first_call) {
     if (first_call) {
         start_time = TIM2->CNT; // Save the initial counter value
         first_call = 0;         // Mark first call as done
+        timer_overflow = 0;
         return 0;               // Return 0 since no time has passed
     } else {
         uint32_t current_time = TIM2->CNT; // Read the current counter value
@@ -701,5 +705,6 @@ void init_timer(void) {
 
 void calculate_WPM(int n) //n in number of words
 {
-    display_WPM(60 * n / timer);
+    // display_WPM(60 * n / timer);
+    display_WPM(timer_overflow);
 }
