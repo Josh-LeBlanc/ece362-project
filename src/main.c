@@ -174,9 +174,10 @@ int main(void) {
             // game end
             paused = 1;
             game_over = 1;
+            accuracy = (int)(100 * (float)chars_correct / (float)tslen);
+            // itoa(accuracy, str2, 10);
             calculate_elapsed_time(0);
             calculate_WPM(num_words);
-            accuracy = (int)(100 * (float)chars_correct / (float)tslen);
 
             // float accuracy = (float)chars_correct / (float)strlen(target_string);
             // // show accuracy
@@ -295,6 +296,7 @@ void EXTI2_3_IRQHandler() {
         scroll = 0;
         paused = 0;
         game_over = 0;
+        chars_correct = 0;
         attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
         for (int i = 0; i < 16; i++) {
             str1[i] = target_string[i];
@@ -391,6 +393,12 @@ void spi1_display1(const char *string) {
     spi_cmd(0x02);
     // for each char in string
     for (int i = 0; i < strlen(string); i++) {
+        if (display) {
+            for(int d=0; d<8; d++) {
+                bb_write_halfword(msg[d]);
+                nano_wait(1);
+            }
+        }
         // if we are on cursor position and its toggled:
         if (i == curpos) { 
             if (game_over && paused) {
