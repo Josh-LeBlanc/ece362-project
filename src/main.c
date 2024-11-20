@@ -174,9 +174,9 @@ int main(void) {
             // game end
             paused = 1;
             game_over = 1;
-            accuracy = (int)(100 * (float)chars_correct / (float)tslen);
-            itoa(accuracy, str2, 10);
             calculate_elapsed_time(0);
+            accuracy = (int)(100 * ((float)chars_correct) / ((float)tslen));
+            itoa(accuracy, str2, 10);
             calculate_WPM(num_words);
 
             // float accuracy = (float)chars_correct / (float)strlen(target_string);
@@ -645,6 +645,7 @@ void display_WPM(int val) {
     int hundreds = val/ 100;
     int tens = (val /10) % 10;
     int ones = val % 10;
+    accuracy = (int)(100*(((float)chars_correct) / ((float)tslen)));
     msg[1] |= map[accuracy / 100];
     msg[2] |= map[(accuracy / 10) % 10];
     msg[3] |= map[accuracy % 10];
