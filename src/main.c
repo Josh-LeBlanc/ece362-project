@@ -57,6 +57,8 @@ void nano_wait(unsigned int n);
 
 volatile uint32_t timer = 0;
 volatile uint32_t timer_overflow = 0;
+volatile uint32_t final_timer = 0;
+int first_pause = 1;
 uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
 extern const char font[];
 int bitnum = 0;
@@ -93,6 +95,18 @@ int ns[] = {
     14,
     18
 };
+const uint8_t map[] = {
+    0x3F, // 0
+    0x06, // 1
+    0x5B, // 2
+    0x4F, // 3
+    0x66, // 4
+    0x6D, // 5
+    0x7D, // 6
+    0x07, // 7
+    0x7F, // 8
+    0x6F  // 9
+};
 char* corps[] = {
     "within the capitalist system all methods for raising the social productiveness of labour", 
     "ok this is going to be short",
@@ -111,7 +125,7 @@ int main(void) {
 
     enable_ports();  // Initialize GPIO
     setup_bb();
-    init_timer();
+    // init_timer();
 
     init_spi1();
     spi1_init_oled();
@@ -175,8 +189,9 @@ int main(void) {
             paused = 1;
             game_over = 1;
             calculate_elapsed_time(0);
+            float temp = (100 * (float)chars_correct / (float)tslen);
+            accuracy = (int)temp;
             calculate_WPM(num_words);
-            accuracy = (int)(100 * (float)chars_correct / (float)tslen);
 
             // float accuracy = (float)chars_correct / (float)strlen(target_string);
             // // show accuracy
@@ -190,12 +205,10 @@ int main(void) {
             // // }
 
         }
-        if (display) {
-            for(int d=0; d<8; d++) {
-                bb_write_halfword(msg[d]);
-                nano_wait(1);
-            }
-        }
+        // msg[5] = map[timer_overflow/10%10];
+        // msg[7] |= map[timer_overflow%10];
+        // msg[5] |= map[0];
+        //msg[0] = |= map[timer_overflow/10%10];
         if (game_over == 0) {
             if (GPIOA->IDR & 1) {
                 paused = ~paused;
@@ -204,6 +217,11 @@ int main(void) {
             if (paused) {
                 spi1_display1(paused1);
                 spi1_display2(clear);
+                if(first_pause)
+                {
+                    first_pause = 0;
+                    final_timer += timer;
+                }
                 continue;
             } else {
                 spi1_display1(str1);
@@ -217,6 +235,13 @@ int main(void) {
                 spi1_display1(end_string1);
                 spi1_display2(end_string2);
             }
+        }
+        if(!first_pause && !paused)
+        {
+            first_pause = 1;
+            init_timer();
+            timer = 0;
+            calculate_elapsed_time(1);
         }
     }
     
@@ -295,6 +320,7 @@ void EXTI2_3_IRQHandler() {
         scroll = 0;
         paused = 0;
         game_over = 0;
+        chars_correct = 0;
         attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
         for (int i = 0; i < 16; i++) {
             str1[i] = target_string[i];
@@ -313,6 +339,7 @@ void EXTI2_3_IRQHandler() {
             str2[i] = target_string[16 + i];
         }
         pchar_num = min(tslen, 32);
+        init_timer();
         calculate_elapsed_time(1);
     }
     // for (int i = 0; i < 16; i++) { str2[i] = 'x'; }
@@ -392,6 +419,12 @@ void spi1_display1(const char *string) {
     // for each char in string
     for (int i = 0; i < strlen(string); i++) {
         // if we are on cursor position and its toggled:
+        if (display) {
+            for(int d=0; d<8; d++) {
+                bb_write_halfword(msg[d]);
+                nano_wait(1);
+            }
+        }
         if (i == curpos) { 
             if (game_over && paused) {
                 tog ? spi_data(end_string1[i]) : spi_data((char)0xff);
@@ -571,19 +604,6 @@ int min(int a, int b) {
     return (a - b) > 0 ? b : a;
 }
 
-const uint8_t map[] = {
-    0x3F, // 0
-    0x06, // 1
-    0x5B, // 2
-    0x4F, // 3
-    0x66, // 4
-    0x6D, // 5
-    0x7D, // 6
-    0x07, // 7
-    0x7F, // 8
-    0x6F  // 9
-};
-
 void small_delay(void) {
     nano_wait(5);
 }
@@ -637,9 +657,20 @@ void display_WPM(int val) {
     int hundreds = val/ 100;
     int tens = (val /10) % 10;
     int ones = val % 10;
+    msg[0] &= ~0xFF;
+    msg[1] &= ~0xFF;
+    msg[2] &= ~0xFF;
+    msg[3] &= ~0xFF;
+    msg[4] &= ~0xFF;
+    msg[5] &= ~0xFF;
+    msg[6] &= ~0xFF;
+    msg[7] &= ~0xFF;
     msg[1] |= map[accuracy / 100];
     msg[2] |= map[(accuracy / 10) % 10];
     msg[3] |= map[accuracy % 10];
+    // msg[1] |= map[timer_overflow / 100];
+    // msg[2] |= map[(timer_overflow / 10) % 10];
+    // msg[3] |= map[timer_overflow % 10];
     msg[0] |= font[' '];
     msg[4] |= font[' '];
     msg[5] |= map[hundreds];
@@ -659,17 +690,18 @@ uint32_t calculate_elapsed_time(int first_call) {
         start_time = TIM2->CNT; // Save the initial counter value
         first_call = 0;         // Mark first call as done
         timer_overflow = 0;
+        timer = 0;
         return 0;               // Return 0 since no time has passed
     } else {
         uint32_t current_time = TIM2->CNT; // Read the current counter value
         if (current_time >= start_time) {
             // Calculate elapsed time in seconds
             timer =((current_time - start_time)/100)+1;
-            //time = 420;
+            //timer = 420;
         } else {
             // Handle counter overflow
-            timer = (((TIM2->ARR - start_time) + current_time)/100) + 1;
-            //time = 69;
+            timer = (((47999 - start_time) + current_time)/100) + 1;
+            //timer = 69;
         }
         if(timer_overflow > 1)
         {
@@ -678,7 +710,7 @@ uint32_t calculate_elapsed_time(int first_call) {
             {
                 timer -= 10;
             }
-            //time = 69;
+            //timer = 69;
         }
         return timer;
     }
@@ -705,6 +737,7 @@ void init_timer(void) {
 
 void calculate_WPM(int n) //n in number of words
 {
-    // display_WPM(60 * n / timer);
-    display_WPM(timer_overflow);
+    timer+=final_timer;
+    display_WPM(60*n/(timer/10));
+    // display_WPM(accuracy);
 }
