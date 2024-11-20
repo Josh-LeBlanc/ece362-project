@@ -175,7 +175,7 @@ int main(void) {
             paused = 1;
             game_over = 1;
             accuracy = (int)(100 * (float)chars_correct / (float)tslen);
-            // itoa(accuracy, str2, 10);
+            itoa(accuracy, str2, 10);
             calculate_elapsed_time(0);
             calculate_WPM(num_words);
 
@@ -215,7 +215,7 @@ int main(void) {
                 spi1_display1(start_string1);
                 spi1_display2(start_string2);
             } else {
-                spi1_display1(end_string1);
+                spi1_display1(str2);
                 spi1_display2(end_string2);
             }
         }
