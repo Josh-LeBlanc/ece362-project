@@ -89,11 +89,11 @@ char* clear = "                ";
 char* target_string = 0;
 char* attempt_string = 0;
 int ns[] = {
-    13,
-    7,
-    15,
-    14,
-    18
+    18,
+    21,
+    10,
+    22,
+    26
 };
 const uint8_t map[] = {
     0x3F, // 0
@@ -108,11 +108,11 @@ const uint8_t map[] = {
     0x6F  // 9
 };
 char* corps[] = {
-    "within the capitalist system all methods for raising the social productiveness of labour", 
-    "ok this is going to be short",
-    "in reality, the laborer belongs to capital before he has sold himself to capital. his ",
-    "education is free. freedoom of education shall be enjoyed under the condition fixed by ",
-    "just as man is governed, in religion, by the products of his own brain, so, in capitalist" 
+    "dashing through the snow in a one-horse open sleigh o'er the fields we go laughing all the way", 
+    "rockin' around the christmas tree at the christmas party hop mistletoe hung where you can see every couple tries to stop",
+    "feliz navidad feliz navidad feliz navidad prospero ano y felicidad",
+    "rudolph the red-nosed reindeer had a very shiny nose and if you ever saw it you would even say it glows",
+    "silent night, holy night all is calm, all is bright round yon virgin mother and child holy infant so tender and mild sleep in heavenly peace" 
 };
 int num_corps = 5;
 
@@ -321,6 +321,11 @@ void EXTI2_3_IRQHandler() {
         paused = 0;
         game_over = 0;
         chars_correct = 0;
+        // timer = 0;
+        // timer_overflow = 0;
+        // final_timer = 0;
+        // init_timer();
+        // calculate_elapsed_time(1);
         attempt_string = (char*)malloc(sizeof(char) * strlen(target_string));
         for (int i = 0; i < 16; i++) {
             str1[i] = target_string[i];
