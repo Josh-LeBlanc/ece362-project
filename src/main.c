@@ -76,6 +76,7 @@ char curkey = 0;
 int tslen = 0;
 int num_words = 0;
 int accuracy = 0;
+int display = 0;
 
 char* start_string1 = "  press start";
 char* start_string2 = "    to begin";
@@ -184,6 +185,13 @@ int main(void) {
             // //     str2[i] = attempt_string[i];
             // // }
 
+        }
+        if (display) {
+            for(int d=0; d<8; d++) {
+                bb_write_halfword(msg[d]);
+                nano_wait(1);
+            }
+        }
         }
         if (game_over == 0) {
             if (GPIOA->IDR & 1) {
@@ -626,19 +634,20 @@ void display_WPM(int val) {
     int hundreds = val/ 100;
     int tens = (val /10) % 10;
     int ones = val % 10;
-    msg[0] |= map[accuracy / 100];
-    msg[1] |= map[(accuracy / 10) % 10];
-    msg[2] |= map[accuracy % 10];
-    msg[3] |= font[' '];
+    msg[1] |= map[accuracy / 100];
+    msg[2] |= map[(accuracy / 10) % 10];
+    msg[3] |= map[accuracy % 10];
+    msg[0] |= font[' '];
     msg[4] |= font[' '];
     msg[5] |= map[hundreds];
     msg[6] |= map[tens];
     msg[7] |= map[ones];
-    for(;;)
-        for(int d=0; d<8; d++) {
-            bb_write_halfword(msg[d]);
-            nano_wait(1);
-        }
+    display = 1;
+    // for(;;)
+    //     for(int d=0; d<8; d++) {
+    //         bb_write_halfword(msg[d]);
+    //         nano_wait(1);
+    //     }
 }
 uint32_t calculate_elapsed_time(int first_call) {
     static uint32_t start_time = 0;
